@@ -40,15 +40,17 @@ void freePlaylist(Playlist* playlist) {
     for (int i = 0; i< playlist->songsNum; i++){
         freeSong(playlist->songs[i]);
     }
-    free(playlist->songs);
-    free(playlist->name);
+    if(playlist->songsNum > 0)
+    {
+        free(playlist->songs);
+        free(playlist->name);
+    }
     free(playlist);
 }
-void freePlaylists(Playlist* playlists, int numPlaylists){
-    for (int i = 0; i < numPlaylists; i++){
+void freePlaylists(Playlist* playlists, int current_size){
+    for (int i = 0; i < current_size; i++){
         freePlaylist(&playlists[i]);
     }
-    free(playlists);
 }
 
 
@@ -257,6 +259,8 @@ void choosePlaylist(Playlist* playlist){
             case PLAY:
                 playFullPlaylist(playlist);
                 break;
+            case EXIT_PLAYLIST:
+                break;
             default:
                 printf("Invalid option\n");
                 break;
@@ -264,33 +268,49 @@ void choosePlaylist(Playlist* playlist){
     }
 
 }
-void addPlaylist(Playlist* playlists, int* numPlaylists) {
+void addPlaylist(Playlist** playlists, int* numPlaylists, int* current_size) {
+    if(*numPlaylists >= *current_size)
+    {
+        *current_size = *current_size + 1;
+        Playlist * temp = (Playlist*)realloc(*playlists, (*current_size)*sizeof(Playlist));
+        if (temp == NULL)
+            exit;
+        *playlists = temp;
+    }
     printf("Enter playlist's name:\n");
     // Initialize the new playlist
-    playlists[*numPlaylists].name = getString();
-    playlists[*numPlaylists].songs = (Song**)malloc(1*sizeof(Song*));
-    playlists[*numPlaylists].songsNum = 0;
+    (*playlists)[*numPlaylists].name = getString();
+    (*playlists)[*numPlaylists].songs = (Song**)malloc(1*sizeof(Song*));
+    (*playlists)[*numPlaylists].songsNum = 0;
     *numPlaylists = *numPlaylists + 1;
 }
-void removePlaylist(Playlist* playlists, int* numPlaylists){
+void removePlaylist(Playlist* playlists, int* numPlaylists, int* current_size){
     int choice;
     scanf("%d", &choice);
     
     //free the playlist that was chosen to be deleted
     freePlaylist(&playlists[choice-1]);
+    *current_size = *current_size - 1;
     //iterate over the playlists array starting from the playlist we wish to delete and move all the playlists one place backwards in the array and override it
-    for (int i = choice-1; i < *numPlaylists-1; i++)
+    for (int i = choice-1; i < *current_size; i++)
     {   
         playlists[i] = playlists[i+1];
     }
     *numPlaylists = *numPlaylists - 1;
-    if (*numPlaylists > 0)
-        playlists = (Playlist*)realloc(playlists, (*numPlaylists) *sizeof(Playlist));
+
+    if(*numPlaylists > 0)
+    {
+        Playlist* temp = (Playlist*)realloc(playlists, (*current_size) * sizeof(Playlist*));
+        if(temp == NULL)
+            exit;
+        playlists = temp;
+    }
 }
 
 
 int main() {
-    Playlist* playlists = (Playlist*)malloc(sizeof(Playlist));
+    int current_size = 1;
+    Playlist* playlists = (Playlist*)malloc(current_size*sizeof(Playlist));
     int numPlaylists = 0;
     int choice = 0;
     while(choice != EXIT_MAIN_MENU){
@@ -307,13 +327,17 @@ int main() {
                     break;
                 choosePlaylist(&playlists[playlistChoice-1]);
                 break;
-            case ADD_PLAYLIST:                   
-                playlists = (Playlist*)realloc(playlists, (numPlaylists + 1) * sizeof(Playlist));
-                addPlaylist(playlists, &numPlaylists);
+            case ADD_PLAYLIST:
+                if(current_size == 0)
+                {
+                    current_size = 1;
+                    playlists = (Playlist*)malloc(current_size*sizeof(Playlist));
+                }
+                addPlaylist(&playlists, &numPlaylists, &current_size);
                 break;
             case REMOVE_PLAYLIST:
                 printPlaylists(playlists, numPlaylists);
-                removePlaylist(playlists, &numPlaylists);
+                removePlaylist(playlists, &numPlaylists, &current_size);
                 break;
             case EXIT_MAIN_MENU:
                 break;
@@ -322,7 +346,7 @@ int main() {
                 break;
         }
     }
-    freePlaylists(playlists, numPlaylists);
+    freePlaylists(playlists, current_size);
     printf("Goodbye!\n");
     return 0;
 }
