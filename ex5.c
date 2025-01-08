@@ -37,6 +37,8 @@ void freeSong(Song* song) {
     }
 }
 void freePlaylist(Playlist* playlist) {
+    if(playlist == NULL)
+        return;
     for (int i = 0; i< playlist->songsNum; i++){
         freeSong(playlist->songs[i]);
     }
@@ -45,11 +47,10 @@ void freePlaylist(Playlist* playlist) {
         free(playlist->songs);
         free(playlist->name);
     }
-    free(playlist);
 }
 void freePlaylists(Playlist* playlists, int current_size){
     for (int i = 0; i < current_size; i++){
-        freePlaylist(&playlists[i]);
+        freePlaylist(&(playlists[i]));
     }
 }
 
@@ -143,7 +144,7 @@ void sortPlaylist(Playlist* playlist) {
     printf("sorted\n");
 }
 char* getString(){
-    char* str = (char*)malloc(1*sizeof(char));
+    char* str = (char*)malloc(sizeof(char));
     int size = 1;
     char ch;
     do
@@ -177,18 +178,13 @@ void printPlaylists(Playlist* playlists, int numPlaylists) {
     }
     printf("\t%d. Back to main menu\n", i+1);
 }
-void showPlaylist(Playlist* playlist){
-    for(int i = 1; i <= playlist->songsNum; i++){
-    printf("%d. Title: %s\n", i, playlist->songs[i-1]->title);
-    printf("\tArtist: %s\n", playlist->songs[i-1]->artist);
-    printf("\tReleased: %d\n", playlist->songs[i-1]->year);
-    printf("\tStreams: %d\n", playlist->songs[i-1]->streams);
-    printf("\n");
-    }
+void chooseSong(Playlist* playlist)
+{
     if(playlist->songsNum == 0){
         printf("No songs in playlist\n");
         return;
     }
+
     int choice = 1;
     while (choice != 0){
     printf("choose a song to play, or 0 to quit:\n");
@@ -197,6 +193,16 @@ void showPlaylist(Playlist* playlist){
         return;
     playSong(playlist, choice - 1);
     }
+}
+void showPlaylist(Playlist* playlist){
+    for(int i = 1; i <= playlist->songsNum; i++){
+    printf("%d. Title: %s\n", i, playlist->songs[i-1]->title);
+    printf("\tArtist: %s\n", playlist->songs[i-1]->artist);
+    printf("\tReleased: %d\n", playlist->songs[i-1]->year);
+    printf("\tStreams: %d\n", playlist->songs[i-1]->streams);
+    printf("\n");
+    }
+
 }
 void addSong(Playlist* playlist){
     printf("Enter song details\n");
@@ -218,17 +224,28 @@ void deleteSong(Playlist* playlist){
     int choice;
     scanf("%d", &choice);
     if (choice == 0)
+    {
         return;
+    }
     //free the song that was chosen to be deleted
     freeSong(playlist->songs[choice-1]);
     //Start from the song we wish to delete and move all the songs one place backwards in the array and override it
     for (int i = choice-1; i < playlist->songsNum-1; i++)
-        playlist->songs[i] = playlist->songs[i+1];   
+        playlist->songs[i] = playlist->songs[i+1];
+
     //reduce the song counter by one
     playlist->songsNum--;
-    //remove the last song from the array
-    if (playlist->songsNum != 0)
-    realloc(playlist->songs, (playlist->songsNum)*sizeof(Song*));
+    if(playlist->songsNum > 0)
+    {
+        Song** temp = (Song**)realloc(playlist->songs, (playlist->songsNum) * sizeof(Song));
+        if(temp != NULL)
+            playlist->songs = temp;
+        else
+        {
+            free(playlist->songs);
+            playlist->songs = NULL;
+        }
+    }
 }
 
 void playFullPlaylist(Playlist* playlist){
@@ -246,11 +263,13 @@ void choosePlaylist(Playlist* playlist){
         {
             case SHOW_PLAYLIST:
                 showPlaylist(playlist);
+                chooseSong(playlist);
                 break;
             case ADD_SONG:
                 addSong(playlist);
                 break;
             case DELETE_SONG:
+                showPlaylist(playlist);
                 deleteSong(playlist);
                 break;
             case SORT:
@@ -274,7 +293,7 @@ void addPlaylist(Playlist** playlists, int* numPlaylists, int* current_size) {
         *current_size = *current_size + 1;
         Playlist * temp = (Playlist*)realloc(*playlists, (*current_size)*sizeof(Playlist));
         if (temp == NULL)
-            exit;
+            exit(1);
         *playlists = temp;
     }
     printf("Enter playlist's name:\n");
@@ -284,27 +303,36 @@ void addPlaylist(Playlist** playlists, int* numPlaylists, int* current_size) {
     (*playlists)[*numPlaylists].songsNum = 0;
     *numPlaylists = *numPlaylists + 1;
 }
-void removePlaylist(Playlist* playlists, int* numPlaylists, int* current_size){
+void removePlaylist(Playlist** playlists, int* numPlaylists, int* current_size){
     int choice;
     scanf("%d", &choice);
-    
+
     //free the playlist that was chosen to be deleted
-    freePlaylist(&playlists[choice-1]);
+    freePlaylist(&((*playlists)[choice-1]));
     *current_size = *current_size - 1;
     //iterate over the playlists array starting from the playlist we wish to delete and move all the playlists one place backwards in the array and override it
     for (int i = choice-1; i < *current_size; i++)
     {   
-        playlists[i] = playlists[i+1];
+        (*playlists)[i] = (*playlists)[i+1];
     }
     *numPlaylists = *numPlaylists - 1;
-
-    if(*numPlaylists > 0)
+    if(*numPlaylists == 0)
     {
-        Playlist* temp = (Playlist*)realloc(playlists, (*current_size) * sizeof(Playlist*));
-        if(temp == NULL)
-            exit;
-        playlists = temp;
+        if(*playlists != NULL)
+            free(*playlists);
+        *playlists = NULL;
+        *current_size = 0;
     }
+    else
+    {
+        //validate it isn't a NULL
+        Playlist* temp = (Playlist*)realloc(*playlists, (*current_size) * sizeof(Playlist));
+        if(temp == NULL)
+            exit(1);
+        *playlists = temp;
+    }
+
+
 }
 
 
@@ -346,7 +374,11 @@ int main() {
                 break;
         }
     }
-    freePlaylists(playlists, current_size);
+    if(playlists != NULL)
+    {
+        freePlaylists(playlists, current_size);
+        free(playlists);
+    }
     printf("Goodbye!\n");
     return 0;
 }
